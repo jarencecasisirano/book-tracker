@@ -6,7 +6,8 @@ A beautiful, responsive web app for tracking the books you've read, writing revi
 
 - **Add, edit, and delete books** with title, author, genre, rating, date read, cover image, and notes
 - **Star ratings** (1-5) for both books and reviews
-- **Reviews** — write and manage multiple reviews per book
+- **Reviews** — write and manage multiple reviews per book, with the reviewer's name and avatar
+- **Shared reviews (optional)** — sync reviews across visitors via Supabase (zero-config fallback to local)
 - **Grid & List views** — toggle between card grid and compact row layout
 - **Search** — real-time filtering by title or author
 - **Sort** — by date, title, or rating (ascending/descending)
@@ -32,9 +33,33 @@ npx serve .
 python -m http.server 8000
 ```
 
+## Testing Locally & on GitHub Pages
+
+> **Important:** For shared reviews (and full Supabase sync) to work, serve the app over `http://`/`https://` — **not** by double-clicking `index.html` (`file://`). A few things require http(s): the Supabase client and Google Fonts load over the network, and `fetch()` of the bundled data JSON is blocked on `file://`.
+
+**Local test steps:**
+
+1. From the project folder, start a server:
+   ```bash
+   npx serve .
+   # or
+   python -m http.server 8000
+   ```
+2. Open `http://localhost:8000` in your browser.
+3. **Verify basic book features:** books load from `book-tracker-data.json`, Add/Edit/Delete work, and clicking a book opens its details + reviews.
+4. **Verify shared reviews:** click a book → "Add Review" → enter your name, rate it, and save. The panel shows "🌐 Reviews are shared with all visitors." Repeat in another browser (or checkout/incognito window) and the review appears there too. Only the browser that created a review shows its **Delete** button.
+5. Verify the review badge count updates on the card.
+
+**Verify it on GitHub Pages:**
+
+1. Commit and push the repo to GitHub, then enable Pages (**Settings > Pages** → source: `main` branch). The site is live at `https://<username>.github.io/book-tracker/`.
+2. Open the live URL (not `localhost`) and repeat step 4 with two different devices/browsers. Because Pages is served over `https://`, everything — including `crypto.randomUUID()` delete-key generation — works everywhere.
+
+> Reminder: an empty browser (or a cleared cache) loads the bundled `book-tracker-data.json` as seed data, then uses `localStorage` from then on.
+
 ## Data Storage
 
-All data is stored in your browser's **localStorage**. This means:
+Books, settings, and their local reviews are stored in your browser's **localStorage**. This means:
 
 - Data persists across page reloads and browser restarts
 - Data is tied to the specific browser on this machine
@@ -59,6 +84,33 @@ This is the recommended way to:
 
 When you commit `book-tracker-data.json` to the repo, it acts as a **seed for new browsers/devices**. On first run (empty localStorage) the app fetches that bundled file and loads it automatically — so a visitor to your GitHub Pages site sees your book data, not the demo books. After the first run, localStorage takes over as the live store and the bundled file is ignored.
 
+### Shared reviews (Supabase)
+
+Reviews can optionally sync across all visitors via a free **Supabase** project, so friends visiting your GitHub Pages site can add reviews that everyone sees — while each browser keeps its own books locally.
+
+**How it works:**
+
+- Each visitor adds reviews with their **name**; the app stores the name for next time.
+- Reviews live in a shared Supabase table, grouped by the book's stable `id`.
+- Deleting a review requires a **delete key** that is randomly generated and stored in the reviewer's own browser. Only the browser that created a review can delete it (nobody else can, including the site owner via the UI).
+- If Supabase is not configured or unreachable (e.g. a free project paused after 7 days of inactivity), the app silently falls back to local reviews.
+
+**One-time setup (5 min):**
+
+1. Create a free project at https://supabase.com
+2. In the Supabase dashboard, go to **SQL Editor** and run the entire contents of [`supabase-setup.sql`](supabase-setup.sql) — it creates the `reviews` and `review_delete_keys` tables, row-level security policies, and the `add_review`/`delete_review` functions.
+3. In **Project Settings > API**, copy the **Project URL** and the **anon** **public** key.
+4. Open [`config.js`](config.js) and paste them in:
+   ```js
+   window.APP_CONFIG = {
+     SUPABASE_URL: 'https://YOUR-PROJECT.supabase.co',
+     SUPABASE_ANON_KEY: 'your-anon-public-key-here',
+   };
+   ```
+5. Reload the app. The review panel now shows **"Reviews are shared with all visitors."**
+
+The anon key is a **public** key (safe to commit) — row-level security and the SECURITY DEFINER functions enforce that visitors can only add reviews or delete a review when they present the matching delete key.
+
 ## Project Structure
 
 ```
@@ -66,6 +118,8 @@ book-tracker/
 ├── index.html              # Main HTML page
 ├── styles.css              # All styles (themes, grid, list, modals)
 ├── app.js                  # All application logic
+├── config.js               # Supabase URL + anon key (fill in your values)
+├── supabase-setup.sql      # SQL to run once in Supabase SQL Editor
 ├── book-tracker-data.json  # Exported data (generated on export)
 └── README.md
 ```
@@ -76,6 +130,7 @@ book-tracker/
 - **CSS3** — CSS Grid, Flexbox, custom properties, animations
 - **JavaScript (ES6+)** — vanilla, no frameworks
 - **localStorage** — client-side data persistence
+- **Supabase (optional)** — shared reviews with row-level security (no auth, no build step)
 - **Google Fonts** — Inter (300-800)
 
 Zero dependencies. No build step. No bundler.

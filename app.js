@@ -6,11 +6,18 @@ let favoritesOnly = false;
 let currentView = 'grid';
 let currentReviewBookId = null;
 let currentReviewRating = 0;
-let editingReviewId = null;
 
 const STORAGE_KEY = 'bookTrackerBooks';
 const THEME_KEY = 'bookTrackerTheme';
 const VIEW_KEY = 'bookTrackerView';
+const REVIEWER_KEY = 'bookTrackerReviewer';
+const DELETE_KEYS_KEY = 'bookTrackerDeleteKeys';
+
+// Shared review state
+let supabaseClient = null;
+let sharedMode = false;
+let sharedReviews = null; // null = not loaded, {} = loaded, { [bookId]: [review,...] }
+let deleteKeys = {};      // { [reviewId]: deleteKey }
 
 // ===== DOM Elements =====
 const booksContainer = document.getElementById('books-container');
@@ -40,6 +47,8 @@ const viewList = document.getElementById('view-list');
 const reviewDetailOverlay = document.getElementById('review-detail-overlay');
 const reviewDetailTitle = document.getElementById('review-detail-title');
 const reviewDetailClose = document.getElementById('review-detail-close');
+const bookDetailInfo = document.getElementById('book-detail-info');
+const reviewSyncNote = document.getElementById('review-sync-note');
 const reviewList = document.getElementById('review-list');
 const reviewDetailEmpty = document.getElementById('review-detail-empty');
 const addReviewBtn = document.getElementById('add-review-btn');
@@ -50,6 +59,7 @@ const reviewForm = document.getElementById('review-form');
 const reviewFormCancel = document.getElementById('review-form-cancel');
 const reviewStars = document.querySelectorAll('#review-star-rating .star');
 const reviewText = document.getElementById('review-text');
+const reviewerInput = document.getElementById('review-reviewer');
 
 // ===== Load & Save =====
 function loadBooks() {
@@ -62,6 +72,67 @@ function loadBooks() {
 
 function saveBooks() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(books));
+}
+
+function loadDeleteKeys() {
+  const saved = localStorage.getItem(DELETE_KEYS_KEY);
+  deleteKeys = saved ? JSON.parse(saved) : {};
+}
+
+function saveDeleteKeys() {
+  localStorage.setItem(DELETE_KEYS_KEY, JSON.stringify(deleteKeys));
+}
+
+// ===== Supabase =====
+function initSupabase() {
+  const url = window.APP_CONFIG && window.APP_CONFIG.SUPABASE_URL;
+  const key = window.APP_CONFIG && window.APP_CONFIG.SUPABASE_ANON_KEY;
+  if (url && key && window.supabase && window.supabase.createClient) {
+    supabaseClient = window.supabase.createClient(url, key);
+    sharedMode = true;
+  }
+}
+
+async function fetchSharedReviews() {
+  if (!sharedMode) return;
+  try {
+    const { data, error } = await supabaseClient
+      .from('reviews')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    sharedReviews = {};
+    (data || []).forEach(review => {
+      const bookId = review.book_id;
+      if (!sharedReviews[bookId]) sharedReviews[bookId] = [];
+      sharedReviews[bookId].push(review);
+    });
+  } catch (err) {
+    sharedReviews = null;
+    sharedMode = false;
+  }
+}
+
+function getReviews(book) {
+  if (sharedMode && sharedReviews) {
+    return sharedReviews[book.id] || [];
+  }
+  return book.reviews || [];
+}
+
+function getReviewCount(book) {
+  return getReviews(book).length;
+}
+
+function canDeleteReview(review) {
+  if (sharedMode && sharedReviews) {
+    return Boolean(deleteKeys[review.id]);
+  }
+  return true;
+}
+
+function reviewDate(review) {
+  return review.created_at || review.date;
 }
 
 // ===== Theme Management =====
@@ -267,7 +338,7 @@ function createBookCard(book, index) {
   const gradientNum = (index % 6) + 1;
   const hasCover = book.cover && book.cover.trim();
   const ratingStars = (book.rating || 0) > 0 ? renderStars(book.rating) : '';
-  const reviewCount = (book.reviews || []).length;
+  const reviewCount = getReviewCount(book);
 
   card.innerHTML = `
     <div class="card-cover" data-gradient="${hasCover ? '' : gradientNum}">
@@ -288,7 +359,7 @@ function createBookCard(book, index) {
       ${book.rating > 0 ? `<div class="card-rating">${ratingStars}</div>` : ''}
       ${book.dateRead ? `<div class="card-date">📅 ${escapeHtml(formatDate(book.dateRead))}</div>` : ''}
       ${book.notes ? `<p class="card-notes">💭 ${escapeHtml(book.notes)}</p>` : ''}
-      <button class="review-badge" data-action="reviews" title="View reviews">
+      <button class="review-badge" data-action="reviews" title="View details & reviews">
         💬 ${reviewCount} ${reviewCount === 1 ? 'review' : 'reviews'}
       </button>
     </div>
@@ -297,7 +368,11 @@ function createBookCard(book, index) {
   card.querySelector('[data-action="fav"]').addEventListener('click', () => toggleFavorite(book.id));
   card.querySelector('[data-action="edit"]').addEventListener('click', () => openEditModal(book.id));
   card.querySelector('[data-action="delete"]').addEventListener('click', () => deleteBook(book.id, card));
-  card.querySelector('[data-action="reviews"]').addEventListener('click', () => openReviewDetail(book.id));
+  card.querySelector('[data-action="reviews"]').addEventListener('click', () => openBookDetail(book.id));
+  card.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action]')) return;
+    openBookDetail(book.id);
+  });
 
   return card;
 }
@@ -311,7 +386,7 @@ function createBookRow(book, index) {
   const gradientNum = (index % 6) + 1;
   const hasCover = book.cover && book.cover.trim();
   const ratingStars = (book.rating || 0) > 0 ? renderStarsCompact(book.rating) : '';
-  const reviewCount = (book.reviews || []).length;
+  const reviewCount = getReviewCount(book);
 
   row.innerHTML = `
     <div class="book-row-cover" data-gradient="${hasCover ? '' : gradientNum}">
@@ -334,7 +409,7 @@ function createBookRow(book, index) {
       ${book.dateRead ? escapeHtml(formatDate(book.dateRead)) : ''}
     </div>
     <div class="book-row-reviews">
-      <button class="review-badge" data-action="reviews" title="View reviews">
+      <button class="review-badge" data-action="reviews" title="View details & reviews">
         💬 ${reviewCount}
       </button>
     </div>
@@ -348,7 +423,11 @@ function createBookRow(book, index) {
   row.querySelector('[data-action="fav"]').addEventListener('click', () => toggleFavorite(book.id));
   row.querySelector('[data-action="edit"]').addEventListener('click', () => openEditModal(book.id));
   row.querySelector('[data-action="delete"]').addEventListener('click', () => deleteBook(book.id, row));
-  row.querySelector('[data-action="reviews"]').addEventListener('click', () => openReviewDetail(book.id));
+  row.querySelector('[data-action="reviews"]').addEventListener('click', () => openBookDetail(book.id));
+  row.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action]')) return;
+    openBookDetail(book.id);
+  });
 
   return row;
 }
@@ -409,7 +488,7 @@ function formatDate(dateStr) {
 
 function escapeHtml(str) {
   const div = document.createElement('div');
-  div.textContent = str;
+  div.textContent = str == null ? '' : String(str);
   return div.innerHTML;
 }
 
@@ -501,16 +580,38 @@ function closeModal() {
   modalOverlay.classList.remove('active');
 }
 
-// ===== Review CRUD =====
-function openReviewDetail(bookId) {
-  currentReviewBookId = bookId;
-  editingReviewId = null;
+// ===== Book Detail + Reviews =====
+function openBookDetail(bookId) {
   const book = books.find(b => b.id === bookId);
   if (!book) return;
 
-  reviewDetailTitle.textContent = `Reviews — ${book.title}`;
+  currentReviewBookId = bookId;
+  reviewDetailTitle.textContent = book.title;
+  renderBookDetail(book);
   renderReviewList(book);
   reviewDetailOverlay.classList.add('active');
+}
+
+function renderBookDetail(book) {
+  const hasCover = book.cover && book.cover.trim();
+  const ratingStars = (book.rating || 0) > 0 ? renderStars(book.rating) : '';
+
+  bookDetailInfo.innerHTML = `
+    <div class="book-detail-cover">
+      ${hasCover
+        ? `<img src="${escapeHtml(book.cover)}" alt="${escapeHtml(book.title)} cover" onerror="handleImageError(this)">`
+        : '<span class="no-cover">📖</span>'
+      }
+    </div>
+    <div class="book-detail-fields">
+      <div class="card-genre genre-${getGenreClass(book.genre)}">${escapeHtml(book.genre || 'General')}</div>
+      <h3 class="book-detail-title">${escapeHtml(book.title)}</h3>
+      <p class="book-detail-author">by ${escapeHtml(book.author)}</p>
+      ${(book.rating || 0) > 0 ? `<div class="book-detail-rating">${ratingStars}</div>` : ''}
+      ${book.dateRead ? `<p class="book-detail-date">📅 ${escapeHtml(formatDate(book.dateRead))}</p>` : ''}
+      ${book.notes ? `<p class="book-detail-notes">💭 ${escapeHtml(book.notes)}</p>` : ''}
+    </div>
+  `;
 }
 
 function closeReviewDetail() {
@@ -519,83 +620,162 @@ function closeReviewDetail() {
 }
 
 function renderReviewList(book) {
-  const reviews = book.reviews || [];
+  const reviews = getReviews(book);
   reviewDetailEmpty.classList.toggle('hidden', reviews.length > 0);
+
+  reviewSyncNote.textContent = sharedMode && sharedReviews
+    ? '🌐 Reviews are shared with all visitors'
+    : 'Reviews are stored locally on this browser';
+  reviewSyncNote.classList.toggle('shared', sharedMode && sharedReviews);
 
   reviewList.innerHTML = '';
   reviews.forEach(review => {
     const card = document.createElement('div');
     card.className = 'review-card';
+    const reviewer = (review.reviewer || 'Anonymous').trim();
+    const initial = reviewer.charAt(0).toUpperCase();
+    const dateStr = formatDate(reviewDate(review));
+    const showDelete = canDeleteReview(review);
+
     card.innerHTML = `
       <div class="review-card-header">
+        <div class="review-author">
+          <span class="review-avatar">${escapeHtml(initial)}</span>
+          <div class="review-author-meta">
+            <span class="review-name">${escapeHtml(reviewer)}</span>
+            <span class="review-card-date">${escapeHtml(dateStr)}</span>
+          </div>
+        </div>
         <div class="review-card-rating">${renderStars(review.rating || 0)}</div>
-        <span class="review-card-date">${escapeHtml(formatDate(review.date))}</span>
       </div>
       ${review.text ? `<div class="review-card-text">${escapeHtml(review.text)}</div>` : ''}
-      <div class="review-card-actions">
-        <button class="review-delete-btn" data-review-id="${review.id}">Delete</button>
-      </div>
+      ${showDelete ? `
+        <div class="review-card-actions">
+          <button class="review-delete-btn" data-review-id="${review.id}">Delete</button>
+        </div>
+      ` : ''}
     `;
-    card.querySelector('.review-delete-btn').addEventListener('click', () => {
-      deleteReview(book.id, review.id);
-    });
+
+    const delBtn = card.querySelector('.review-delete-btn');
+    if (delBtn) {
+      delBtn.addEventListener('click', () => {
+        deleteReview(book.id, review.id);
+      });
+    }
     reviewList.appendChild(card);
   });
 }
 
+// ===== Review Form =====
 function openReviewForm(bookId) {
-  currentReviewBookId = bookId;
-  editingReviewId = null;
-  reviewFormTitle.textContent = 'Add Review';
+  const book = books.find(b => b.id === bookId);
+  if (book) reviewFormTitle.textContent = `Add Review — ${book.title}`;
   reviewForm.reset();
+  reviewerInput.value = localStorage.getItem(REVIEWER_KEY) || '';
   currentReviewRating = 0;
   updateReviewStarDisplay();
   reviewFormOverlay.classList.add('active');
+  setTimeout(() => reviewerInput.focus(), 350);
 }
 
 function closeReviewForm() {
   reviewFormOverlay.classList.remove('active');
 }
 
-function addReview(bookId, reviewData) {
+async function addReview(bookId, reviewData) {
   const book = books.find(b => b.id === bookId);
   if (!book) return;
-  if (!book.reviews) book.reviews = [];
 
-  const review = {
+  if (sharedMode) {
+    const deleteKey = crypto.randomUUID ? crypto.randomUUID()
+      : Date.now().toString(36) + Math.random().toString(36).substr(2);
+    try {
+      const { data, error } = await supabaseClient.rpc('add_review', {
+        p_book_id: bookId,
+        p_reviewer: reviewData.reviewer,
+        p_rating: reviewData.rating,
+        p_text: reviewData.text,
+        p_delete_key: deleteKey,
+      });
+      if (error) throw error;
+      deleteKeys[data] = deleteKey;
+      saveDeleteKeys();
+      await fetchSharedReviews();
+      renderReviewList(book);
+      renderBooks();
+      return true;
+    } catch (err) {
+      alert('Could not save review online. Saving locally instead.');
+      sharedMode = false;
+    }
+  }
+
+  if (!book.reviews) book.reviews = [];
+  book.reviews.push({
     id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+    reviewer: reviewData.reviewer,
     text: reviewData.text,
     rating: reviewData.rating,
     date: new Date().toISOString().split('T')[0],
-  };
-
-  book.reviews.push(review);
-  saveBooks();
-  renderReviewList(book);
-}
-
-function deleteReview(bookId, reviewId) {
-  const book = books.find(b => b.id === bookId);
-  if (!book || !book.reviews) return;
-
-  book.reviews = book.reviews.filter(r => r.id !== reviewId);
+  });
   saveBooks();
   renderReviewList(book);
   renderBooks();
+  return true;
+}
+
+async function deleteReview(bookId, reviewId) {
+  const book = books.find(b => b.id === bookId);
+  if (!book) return;
+
+  if (sharedMode) {
+    const deleteKey = deleteKeys[reviewId];
+    if (!deleteKey) return;
+    try {
+      const { error } = await supabaseClient.rpc('delete_review', {
+        p_review_id: reviewId,
+        p_delete_key: deleteKey,
+      });
+      if (error) throw error;
+      delete deleteKeys[reviewId];
+      saveDeleteKeys();
+      await fetchSharedReviews();
+      renderReviewList(book);
+      renderBooks();
+      return;
+    } catch (err) {
+      alert('Could not delete the review online. Please try again.');
+      return;
+    }
+  }
+
+  if (book.reviews) {
+    book.reviews = book.reviews.filter(r => r.id !== reviewId);
+    saveBooks();
+    renderReviewList(book);
+    renderBooks();
+  }
 }
 
 // Review form submit
-reviewForm.addEventListener('submit', (e) => {
+reviewForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!currentReviewBookId) return;
 
-  addReview(currentReviewBookId, {
+  const reviewer = reviewerInput.value.trim();
+  if (!reviewer) {
+    alert('Please enter your name.');
+    return;
+  }
+  localStorage.setItem(REVIEWER_KEY, reviewer);
+
+  await addReview(currentReviewBookId, {
+    reviewer,
     text: reviewText.value.trim(),
     rating: currentReviewRating,
   });
 
   closeReviewForm();
-  renderBooks();
 });
 
 addReviewBtn.addEventListener('click', () => {
@@ -822,7 +1002,10 @@ async function init() {
   loadTheme();
   loadView();
   loadBooks();
+  loadDeleteKeys();
   await seedIfEmpty();
+  initSupabase();
+  await fetchSharedReviews();
   populateGenreFilter();
   renderBooks();
 }

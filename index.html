@@ -6,6 +6,7 @@
   <title>Book Tracker</title>
   <link rel="stylesheet" href="styles.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <header>
@@ -149,6 +150,8 @@
         <button id="review-detail-close" class="btn-icon">&times;</button>
       </div>
       <div class="review-detail-body">
+        <div id="book-detail-info" class="book-detail-info"></div>
+        <div id="review-sync-note" class="review-sync-note"></div>
         <div id="review-list" class="review-list"></div>
         <div id="review-detail-empty" class="review-detail-empty">
           <p>No reviews yet. Add your first review!</p>
@@ -168,6 +171,10 @@
         <button id="review-form-close" class="btn-icon">&times;</button>
       </div>
       <form id="review-form" class="book-form">
+        <div class="form-group">
+          <label for="review-reviewer">Your Name *</label>
+          <input type="text" id="review-reviewer" required maxlength="40" placeholder="e.g., Jarence">
+        </div>
         <div class="form-group">
           <label>Rating</label>
           <div class="star-rating" id="review-star-rating">
@@ -190,6 +197,7 @@
     </div>
   </div>
 
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
