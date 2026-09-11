@@ -543,12 +543,12 @@ main {
 }
 
 /* ===== Card cover color variations ===== */
-.card-cover[data-gradient="1"] { background: var(--gradient-1); }
-.card-cover[data-gradient="2"] { background: var(--gradient-2); }
-.card-cover[data-gradient="3"] { background: var(--gradient-3); }
-.card-cover[data-gradient="4"] { background: var(--gradient-4); }
-.card-cover[data-gradient="5"] { background: var(--gradient-5); }
-.card-cover[data-gradient="6"] { background: var(--gradient-6); }
+.card-cover[data-gradient="1"], .book-row-cover[data-gradient="1"] { background: var(--gradient-1); }
+.card-cover[data-gradient="2"], .book-row-cover[data-gradient="2"] { background: var(--gradient-2); }
+.card-cover[data-gradient="3"], .book-row-cover[data-gradient="3"] { background: var(--gradient-3); }
+.card-cover[data-gradient="4"], .book-row-cover[data-gradient="4"] { background: var(--gradient-4); }
+.card-cover[data-gradient="5"], .book-row-cover[data-gradient="5"] { background: var(--gradient-5); }
+.card-cover[data-gradient="6"], .book-row-cover[data-gradient="6"] { background: var(--gradient-6); }
 
 /* ===== Review Count Badge ===== */
 .review-badge {
