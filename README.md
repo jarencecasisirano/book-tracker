@@ -55,6 +55,10 @@ This is the recommended way to:
 - Move data if you clear your browser
 - **Commit your data to git** — export `book-tracker-data.json` into the project folder, then `git add` + `git commit` it alongside your code.
 
+### Bundled data auto-load
+
+When you commit `book-tracker-data.json` to the repo, it acts as a **seed for new browsers/devices**. On first run (empty localStorage) the app fetches that bundled file and loads it automatically — so a visitor to your GitHub Pages site sees your book data, not the demo books. After the first run, localStorage takes over as the live store and the bundled file is ignored.
+
 ## Project Structure
 
 ```

@@ -744,52 +744,87 @@ favoritesToggle.addEventListener('click', () => {
 });
 
 // ===== Init =====
-loadTheme();
-loadView();
-loadBooks();
-populateGenreFilter();
+const DATA_FILE = './book-tracker-data.json';
 
-// Seed with demo data if empty
-if (books.length === 0) {
-  books = [
-    {
-      id: 'demo1',
-      title: 'The Alchemist',
-      author: 'Paulo Coelho',
-      genre: 'Fiction',
-      rating: 5,
-      dateRead: '2026-01-15',
-      cover: '',
-      notes: 'A beautiful journey about following your dreams.',
-      favorite: true,
-      reviews: [],
-    },
-    {
-      id: 'demo2',
-      title: 'Dune',
-      author: 'Frank Herbert',
-      genre: 'Sci-Fi',
-      rating: 4,
-      dateRead: '2026-02-20',
-      cover: '',
-      notes: 'Complex world-building and epic scale.',
-      favorite: false,
-      reviews: [],
-    },
-    {
-      id: 'demo3',
-      title: 'Pride and Prejudice',
-      author: 'Jane Austen',
-      genre: 'Romance',
-      rating: 4,
-      dateRead: '2026-03-10',
-      cover: '',
-      notes: 'Timeless classic with witty dialogue.',
-      favorite: true,
-      reviews: [],
-    },
-  ];
+const DEMO_BOOKS = [
+  {
+    id: 'demo1',
+    title: 'The Alchemist',
+    author: 'Paulo Coelho',
+    genre: 'Fiction',
+    rating: 5,
+    dateRead: '2026-01-15',
+    cover: '',
+    notes: 'A beautiful journey about following your dreams.',
+    favorite: true,
+    reviews: [],
+  },
+  {
+    id: 'demo2',
+    title: 'Dune',
+    author: 'Frank Herbert',
+    genre: 'Sci-Fi',
+    rating: 4,
+    dateRead: '2026-02-20',
+    cover: '',
+    notes: 'Complex world-building and epic scale.',
+    favorite: false,
+    reviews: [],
+  },
+  {
+    id: 'demo3',
+    title: 'Pride and Prejudice',
+    author: 'Jane Austen',
+    genre: 'Romance',
+    rating: 4,
+    dateRead: '2026-03-10',
+    cover: '',
+    notes: 'Timeless classic with witty dialogue.',
+    favorite: true,
+    reviews: [],
+  },
+];
+
+function normalizeBooks(data) {
+  const isValid = Array.isArray(data) && data.every(book =>
+    book.title && book.author && typeof book.title === 'string' && typeof book.author === 'string'
+  );
+  if (!isValid) return false;
+  data.forEach(book => {
+    if (!book.id) book.id = Date.now().toString(36) + Math.random().toString(36).substr(2);
+    if (!Array.isArray(book.reviews)) book.reviews = [];
+  });
+  books = data;
+  return true;
+}
+
+async function seedIfEmpty() {
+  if (books.length > 0) return;
+
+  try {
+    const res = await fetch(DATA_FILE);
+    if (res.ok) {
+      const data = await res.json();
+      if (normalizeBooks(data)) {
+        saveBooks();
+        return;
+      }
+    }
+  } catch (err) {
+    // Fetch failed (e.g. opened via file:// or no file bundled) — fall back to demo data.
+  }
+
+  books = DEMO_BOOKS.map(book => ({ ...book }));
   saveBooks();
 }
 
-renderBooks();
+async function init() {
+  loadTheme();
+  loadView();
+  loadBooks();
+  await seedIfEmpty();
+  populateGenreFilter();
+  renderBooks();
+}
+
+init();

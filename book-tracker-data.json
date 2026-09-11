@@ -1,14 +1,38 @@
 [
   {
-    "title": "What you are looking for is in the library",
-    "author": "Michiko Aoyama",
-    "genre": "Contemporary Fiction",
+    "id": "demo1",
+    "title": "The Alchemist",
+    "author": "Paulo Coelho",
+    "genre": "Fiction",
+    "rating": 5,
+    "dateRead": "2026-01-15",
+    "cover": "",
+    "notes": "A beautiful journey about following your dreams.",
+    "favorite": true,
+    "reviews": []
+  },
+  {
+    "id": "demo2",
+    "title": "Dune",
+    "author": "Frank Herbert",
+    "genre": "Sci-Fi",
     "rating": 4,
-    "dateRead": "2026-09-08",
-    "cover": "https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/1683915876l/91274427.jpg",
-    "notes": "Good read. Cozy. Light. Warm-hearted but heartfelt.",
+    "dateRead": "2026-02-20",
+    "cover": "",
+    "notes": "Complex world-building and epic scale.",
     "favorite": false,
-    "id": "mtvws8e031c12yw4e8m",
+    "reviews": []
+  },
+  {
+    "id": "demo3",
+    "title": "Pride and Prejudice",
+    "author": "Jane Austen",
+    "genre": "Romance",
+    "rating": 4,
+    "dateRead": "2026-03-10",
+    "cover": "",
+    "notes": "Timeless classic with witty dialogue.",
+    "favorite": true,
     "reviews": []
   }
 ]
