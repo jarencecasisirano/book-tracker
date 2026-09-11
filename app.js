@@ -259,6 +259,12 @@ async function reconcileBooks() {
       merged.push(book);
       sharedByKey.delete(key);
     } else {
+      if (book.sharedId) {
+        // This was adopted from the shared table but its row is gone
+        // (deleted by the owning browser) — remove the local copy rather
+        // than re-publishing it.
+        continue;
+      }
       try {
         await publishBookToShared(book);
       } catch (err) {
