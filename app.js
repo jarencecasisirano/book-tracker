@@ -115,9 +115,14 @@ async function fetchSharedReviews() {
 
 function getReviews(book) {
   if (sharedMode && sharedReviews) {
-    return sharedReviews[book.id] || [];
+    return sharedReviews[stableBookId(book)] || [];
   }
   return book.reviews || [];
+}
+
+function stableBookId(book) {
+  const s = (book.title + '|' + book.author).toLowerCase();
+  return s.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
 function getReviewCount(book) {
@@ -691,7 +696,7 @@ async function addReview(bookId, reviewData) {
       : Date.now().toString(36) + Math.random().toString(36).substr(2);
     try {
       const { data, error } = await supabaseClient.rpc('add_review', {
-        p_book_id: bookId,
+        p_book_id: stableBookId(book),
         p_reviewer: reviewData.reviewer,
         p_rating: reviewData.rating,
         p_text: reviewData.text,
