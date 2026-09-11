@@ -5,6 +5,20 @@
 -- Favorites intentionally stay per-device, so they are NOT stored here.
 -- ============================================================
 
+-- Open permissions for everyone (temporary): anyone can edit/delete
+-- any review or book. Roles/auth will be reconfigured later.
+drop policy if exists "anyone can update reviews" on public.reviews;
+create policy "anyone can update reviews" on public.reviews
+  for update using (true);
+
+drop policy if exists "anyone can delete reviews" on public.reviews;
+create policy "anyone can delete reviews" on public.reviews
+  for delete using (true);
+
+drop policy if exists "anyone can delete books" on public.books;
+create policy "anyone can delete books" on public.books
+  for delete using (true);
+
 -- Shared books table
 create table if not exists public.books (
   id uuid primary key default gen_random_uuid(),
@@ -21,13 +35,16 @@ create table if not exists public.books (
 
 alter table public.books enable row level security;
 
+drop policy if exists "anyone can read books" on public.books;
 create policy "anyone can read books" on public.books
   for select using (true);
 
+drop policy if exists "anyone can insert books" on public.books;
 create policy "anyone can insert books" on public.books
   for insert with check (true);
 
--- Allow edits to sync (casual/small trusted users; same model as reviews)
+-- Open permissions for everyone (temporary) — anyone can edit/delete any book.
+drop policy if exists "anyone can update books" on public.books;
 create policy "anyone can update books" on public.books
   for update using (true);
 

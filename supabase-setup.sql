@@ -21,6 +21,14 @@ create policy "anyone can read reviews" on public.reviews
 create policy "anyone can insert reviews" on public.reviews
   for insert with check (true);
 
+-- NOTE: open permissions for now (everyone can edit/delete anything).
+-- Will be reconfigured with proper roles/auth later.
+create policy "anyone can update reviews" on public.reviews
+  for update using (true);
+
+create policy "anyone can delete reviews" on public.reviews
+  for delete using (true);
+
 -- Delete keys table (completely private - no anon access)
 create table public.review_delete_keys (
   review_id uuid primary key references public.reviews(id) on delete cascade,
@@ -106,6 +114,11 @@ create policy "anyone can insert books" on public.books
 -- Allow edits to sync (casual/small trusted users; same model as reviews)
 create policy "anyone can update books" on public.books
   for update using (true);
+
+-- NOTE: open permissions for now (everyone can edit/delete anything).
+-- Will be reconfigured with proper roles/auth later.
+create policy "anyone can delete books" on public.books
+  for delete using (true);
 
 -- Book delete keys table (completely private - no anon access)
 create table public.book_delete_keys (

@@ -11,19 +11,15 @@ const STORAGE_KEY = 'bookTrackerBooks';
 const THEME_KEY = 'bookTrackerTheme';
 const VIEW_KEY = 'bookTrackerView';
 const REVIEWER_KEY = 'bookTrackerReviewer';
-const DELETE_KEYS_KEY = 'bookTrackerDeleteKeys';
 const FAVORITES_KEY = 'bookTrackerFavorites';
-const BOOK_DELETE_KEYS_KEY = 'bookTrackerBookDeleteKeys';
 
 // Shared review state
 let supabaseClient = null;
 let sharedMode = false;
 let sharedReviews = null; // null = not loaded, {} = loaded, { [bookId]: [review,...] }
-let deleteKeys = {};      // { [reviewId]: deleteKey }
 
 // Shared book state
 let sharedBooks = null;   // null = not loaded, [] = loaded (array of shared books)
-let bookDeleteKeys = {};  // { [sharedBookId]: deleteKey }
 let favorites = {};       // { [bookKey]: true } — favorites stay per-device
 
 // ===== DOM Elements =====
@@ -81,15 +77,6 @@ function saveBooks() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(books));
 }
 
-function loadDeleteKeys() {
-  const saved = localStorage.getItem(DELETE_KEYS_KEY);
-  deleteKeys = saved ? JSON.parse(saved) : {};
-}
-
-function saveDeleteKeys() {
-  localStorage.setItem(DELETE_KEYS_KEY, JSON.stringify(deleteKeys));
-}
-
 function loadFavorites() {
   const saved = localStorage.getItem(FAVORITES_KEY);
   favorites = saved ? JSON.parse(saved) : {};
@@ -97,15 +84,6 @@ function loadFavorites() {
 
 function saveFavorites() {
   localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
-}
-
-function loadBookDeleteKeys() {
-  const saved = localStorage.getItem(BOOK_DELETE_KEYS_KEY);
-  bookDeleteKeys = saved ? JSON.parse(saved) : {};
-}
-
-function saveBookDeleteKeys() {
-  localStorage.setItem(BOOK_DELETE_KEYS_KEY, JSON.stringify(bookDeleteKeys));
 }
 
 function makeKey() {
@@ -170,7 +148,6 @@ async function fetchSharedBooks() {
 }
 
 async function publishBookToShared(book) {
-  const deleteKey = makeKey();
   const { data, error } = await supabaseClient.rpc('add_book', {
     p_book_key: stableBookId(book),
     p_title: book.title,
@@ -180,12 +157,10 @@ async function publishBookToShared(book) {
     p_date_read: book.dateRead || '',
     p_cover: book.cover || '',
     p_notes: book.notes || '',
-    p_delete_key: deleteKey,
+    p_delete_key: makeKey(),
   });
   if (error) throw error;
   book.sharedId = data;
-  bookDeleteKeys[data] = deleteKey;
-  saveBookDeleteKeys();
   return true;
 }
 
@@ -299,9 +274,8 @@ function getReviewCount(book) {
 }
 
 function canDeleteReview(review) {
-  if (sharedMode && sharedReviews) {
-    return Boolean(deleteKeys[review.id]);
-  }
+  // Temporary open permissions — anyone can delete any review.
+  // Will be restricted again when roles/auth are configured.
   return true;
 }
 
@@ -514,7 +488,6 @@ function createBookCard(book, index) {
   const hasCover = book.cover && book.cover.trim();
   const ratingStars = (book.rating || 0) > 0 ? renderStars(book.rating) : '';
   const reviewCount = getReviewCount(book);
-  const canDelete = !(book.sharedId && !bookDeleteKeys[book.sharedId]);
 
   card.innerHTML = `
     <div class="card-cover" data-gradient="${hasCover ? '' : gradientNum}">
@@ -525,7 +498,7 @@ function createBookCard(book, index) {
       <div class="card-actions-top">
         <button class="btn-fav ${book.favorite ? 'active' : ''}" data-action="fav" title="Toggle favorite">♥</button>
         <button class="btn-edit" data-action="edit" title="Edit book">✏️</button>
-        ${canDelete ? '<button class="btn-delete" data-action="delete" title="Delete book">🗑️</button>' : ''}
+        <button class="btn-delete" data-action="delete" title="Delete book">🗑️</button>
       </div>
     </div>
     <div class="card-body">
@@ -564,7 +537,6 @@ function createBookRow(book, index) {
   const hasCover = book.cover && book.cover.trim();
   const ratingStars = (book.rating || 0) > 0 ? renderStarsCompact(book.rating) : '';
   const reviewCount = getReviewCount(book);
-  const canDelete = !(book.sharedId && !bookDeleteKeys[book.sharedId]);
 
   row.innerHTML = `
     <div class="book-row-cover" data-gradient="${hasCover ? '' : gradientNum}">
@@ -594,14 +566,13 @@ function createBookRow(book, index) {
     <div class="book-row-actions">
       <button class="btn-fav ${book.favorite ? 'active' : ''}" data-action="fav" title="Toggle favorite">♥</button>
       <button data-action="edit" title="Edit book">✏️</button>
-      ${canDelete ? '<button data-action="delete" title="Delete book">🗑️</button>' : ''}
+      <button data-action="delete" title="Delete book">🗑️</button>
     </div>
   `;
 
   row.querySelector('[data-action="fav"]').addEventListener('click', () => toggleFavorite(book.id));
   row.querySelector('[data-action="edit"]').addEventListener('click', () => openEditModal(book.id));
-  const rowDelBtn = row.querySelector('[data-action="delete"]');
-  if (rowDelBtn) rowDelBtn.addEventListener('click', () => deleteBook(book.id, row));
+  row.querySelector('[data-action="delete"]').addEventListener('click', () => deleteBook(book.id, row));
   row.querySelector('[data-action="reviews"]').addEventListener('click', () => openBookDetail(book.id));
   row.addEventListener('click', (e) => {
     if (e.target.closest('[data-action]')) return;
@@ -717,17 +688,13 @@ async function deleteBook(id, card) {
   const book = books.find(b => b.id === id);
   card.classList.add('removing');
   setTimeout(async () => {
-    if (book && book.sharedId && bookDeleteKeys[book.sharedId] && supabaseClient) {
+    if (book && book.sharedId && supabaseClient) {
       try {
-        await supabaseClient.rpc('delete_book', {
-          p_book_id: book.sharedId,
-          p_delete_key: bookDeleteKeys[book.sharedId],
-        });
+        // Temporary open permissions — anyone can delete any shared book.
+        await supabaseClient.from('books').delete().eq('id', book.sharedId);
       } catch (err) {
         // Best effort: still remove locally.
       }
-      delete bookDeleteKeys[book.sharedId];
-      saveBookDeleteKeys();
       if (sharedBooks) {
         const key = stableBookId(book);
         sharedBooks = sharedBooks.filter(b => b.book_key !== key);
@@ -885,18 +852,15 @@ async function addReview(bookId, reviewData) {
   if (!book) return;
 
   if (sharedMode) {
-    const deleteKey = makeKey();
     try {
       const { data, error } = await supabaseClient.rpc('add_review', {
         p_book_id: stableBookId(book),
         p_reviewer: reviewData.reviewer,
         p_rating: reviewData.rating,
         p_text: reviewData.text,
-        p_delete_key: deleteKey,
+        p_delete_key: makeKey(),
       });
       if (error) throw error;
-      deleteKeys[data] = deleteKey;
-      saveDeleteKeys();
       await fetchSharedReviews();
       renderReviewList(book);
       renderBooks();
@@ -926,16 +890,10 @@ async function deleteReview(bookId, reviewId) {
   if (!book) return;
 
   if (sharedMode) {
-    const deleteKey = deleteKeys[reviewId];
-    if (!deleteKey) return;
     try {
-      const { error } = await supabaseClient.rpc('delete_review', {
-        p_review_id: reviewId,
-        p_delete_key: deleteKey,
-      });
+      // Temporary open permissions — anyone can delete any shared review.
+      const { error } = await supabaseClient.from('reviews').delete().eq('id', reviewId);
       if (error) throw error;
-      delete deleteKeys[reviewId];
-      saveDeleteKeys();
       await fetchSharedReviews();
       renderReviewList(book);
       renderBooks();
@@ -1211,9 +1169,7 @@ async function init() {
   loadTheme();
   loadView();
   loadBooks();
-  loadDeleteKeys();
   loadFavorites();
-  loadBookDeleteKeys();
   await seedIfEmpty();
   await replaceDemoBooksWithBundled();
   migrateLegacyFavorites();

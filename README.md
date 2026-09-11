@@ -47,9 +47,9 @@ python -m http.server 8000
    ```
 2. Open `http://localhost:8000` in your browser.
 3. **Verify basic book features:** books load from `book-tracker-data.json`, Add/Edit/Delete work, and clicking a book opens its details + reviews.
-4. **Verify shared reviews:** click a book → "Add Review" → enter your name, rate it, and save. The panel shows "🌐 Reviews are shared with all visitors." Repeat in another browser (or checkout/incognito window) and the review appears there too. Only the browser that created a review shows its **Delete** button.
+4. **Verify shared reviews:** click a book → "Add Review" → enter your name, rate it, and save. The panel shows "🌐 Reviews are shared with all visitors." Repeat in another browser (or checkout/incognito window) and the review appears there too. Every review shows a **Delete** button to anyone.
 5. Verify the review badge count updates on the card.
-6. **Verify shared books:** in one browser add a book (form → Add Book). Open a second/incognito window; the new book appears there too (after reload). Edit the book in one browser and reload the other — the change is reflected. Deleting a book you added removes it for everyone; books added on other devices don't show a **Delete** button for you (only the creating browser owns the delete key). Favorites (♥) stay per-device — a favorite set in one browser does not appear in another.
+6. **Verify shared books & open permissions:** in one browser add a book (form → Add Book). Open a second/incognito window; the new book appears there too (after reload). Edit the book in one browser and reload the other — the change is reflected. Anyone can delete any book or review (Delete/✏️ buttons are visible on every record); deleting a book in one browser removes it for everyone. Favorites (♥) stay per-device — a favorite set in one browser does not appear in another.
 
 **Verify it on GitHub Pages:**
 
@@ -93,9 +93,8 @@ Books and reviews can optionally sync across all visitors via a free **Supabase*
 
 - Each visitor adds reviews with their **name**; the app stores the name for next time.
 - Reviews live in a shared Supabase table, grouped by the book's stable `id`.
-- Deleting a review requires a **delete key** that is randomly generated and stored in the reviewer's own browser. Only the browser that created a review can delete it (nobody else can, including the site owner via the UI).
 - Books are synced the same way: a shared `books` table stores the canonical title/author/genre/rating/date/cover/notes per stable book key. When you add or edit a book, it updates the shared table; any browser that loads the app merges the shared books in. A book added on another device appears on yours.
-- Deleting a book works like reviews — only the browser that added the book (or re-synced it) holds its delete key and sees the Delete button.
+- **Permissions are currently open (temporary):** everyone can edit or delete any book and any review — including ones created by other visitors. Delete and edit buttons are shown for every record. Proper roles/authentication will be configured later.
 - **Favorites are per-device** and never uploaded. One browser's favorites don't affect another's.
 - On first upgrade, any existing local books are automatically published to the shared table (so they appear everywhere); the old demo seed books are replaced with the bundled data instead of being published.
 - If Supabase is not configured or unreachable (e.g. a free project paused after 7 days of inactivity), the app silently falls back to local books and reviews.
@@ -104,8 +103,8 @@ Books and reviews can optionally sync across all visitors via a free **Supabase*
 
 1. Create a free project at https://supabase.com
 2. In the Supabase dashboard, go to **SQL Editor**:
-   - **New project:** run the entire contents of [`supabase-setup.sql`](supabase-setup.sql) — it creates the `reviews`/`review_delete_keys` and `books`/`book_delete_keys` tables, row-level security policies, and the `add_review`/`delete_review`/`add_book`/`delete_book` functions.
-   - **Existing project (already ran `supabase-setup.sql`):** run [`supabase-upgrade-books.sql`](supabase-upgrade-books.sql) to add the books tables and functions.
+   - **New project:** run the entire contents of [`supabase-setup.sql`](supabase-setup.sql) — it creates the `reviews`/`review_delete_keys` and `books`/`book_delete_keys` tables, row-level security policies, and the `add_review`/`delete_review`/`add_book`/`delete_book` functions. It also opens permissions so everyone can edit/delete everything.
+   - **Existing project (already ran `supabase-setup.sql`):** run the entire contents of [`supabase-upgrade-books.sql`](supabase-upgrade-books.sql). It's safe to re-run — it adds the books tables/functions and applies the open permissions (everyone can edit/delete any review or book).
 3. In **Project Settings > API**, copy the **Project URL** and the **anon** **public** key.
 4. Open [`config.js`](config.js) and paste them in:
    ```js
@@ -116,7 +115,7 @@ Books and reviews can optionally sync across all visitors via a free **Supabase*
    ```
 5. Reload the app. The review panel now shows **"Reviews are shared with all visitors."**
 
-The anon key is a **public** key (safe to commit) — row-level security and the SECURITY DEFINER functions enforce that visitors can only add books/reviews or delete a record when they present the matching delete key.
+The anon key is a **public** key (safe to commit). Row-level security and the SECURITY DEFINER functions currently permit **everyone** to read, add, edit, and delete books and reviews — these open permissions are temporary and will be replaced with proper roles/auth later.
 
 ## Project Structure
 
