@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Book Tracker</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-icon">&#128214;</span>
+        <h1>Book Tracker</h1>
+      </div>
+      <div class="header-actions">
+        <button id="export-btn" class="btn-secondary" title="Export data as JSON">
+          &#128190; Export
+        </button>
+        <button id="import-btn" class="btn-secondary" title="Import data from JSON">
+          &#128194; Import
+        </button>
+        <input type="file" id="import-file" accept=".json" style="display: none;">
+        <button id="theme-toggle" class="btn-icon" title="Toggle theme">
+          <span class="theme-icon">&#9790;</span>
+        </button>
+        <button id="add-book-btn" class="btn-primary">
+          <span>+</span> Add Book
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="toolbar">
+      <div class="search-box">
+        <span class="search-icon">&#128269;</span>
+        <input type="text" id="search-input" placeholder="Search by title or author...">
+      </div>
+      <div class="filter-group">
+        <select id="sort-select">
+          <option value="date-desc">Newest First</option>
+          <option value="date-asc">Oldest First</option>
+          <option value="title-asc">Title A-Z</option>
+          <option value="title-desc">Title Z-A</option>
+          <option value="rating-desc">Highest Rated</option>
+          <option value="rating-asc">Lowest Rated</option>
+        </select>
+        <select id="genre-filter">
+          <option value="all">All Genres</option>
+        </select>
+        <button id="favorites-toggle" class="btn-filter" title="Show favorites only">
+          <span>&#9829;</span> Favorites
+        </button>
+        <div class="view-toggle">
+          <button id="view-grid" class="view-btn active" title="Grid view">&#9638;</button>
+          <button id="view-list" class="view-btn" title="List view">&#9776;</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat">
+        <span class="stat-value" id="total-count">0</span>
+        <span class="stat-label">Books Read</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="favorites-count">0</span>
+        <span class="stat-label">Favorites</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="avg-rating">0</span>
+        <span class="stat-label">Avg Rating</span>
+      </div>
+    </div>
+
+    <div id="books-container" class="books-grid"></div>
+
+    <div id="empty-state" class="empty-state">
+      <div class="empty-icon">&#128218;</div>
+      <h2>No books yet</h2>
+      <p>Click "Add Book" to start tracking your reading journey!</p>
+    </div>
+  </main>
+
+  <!-- Add/Edit Book Modal -->
+  <div id="modal-overlay" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-title">Add New Book</h2>
+        <button id="modal-close" class="btn-icon">&times;</button>
+      </div>
+      <form id="book-form" class="book-form">
+        <input type="hidden" id="book-id">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="book-title">Title *</label>
+            <input type="text" id="book-title" required placeholder="Enter book title">
+          </div>
+          <div class="form-group">
+            <label for="book-author">Author *</label>
+            <input type="text" id="book-author" required placeholder="Enter author name">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="book-genre">Genre</label>
+            <input type="text" id="book-genre" placeholder="e.g., Fiction, Sci-Fi">
+          </div>
+          <div class="form-group">
+            <label for="book-rating">Rating</label>
+            <div class="star-rating" id="star-rating">
+              <span class="star" data-value="1">&#9733;</span>
+              <span class="star" data-value="2">&#9733;</span>
+              <span class="star" data-value="3">&#9733;</span>
+              <span class="star" data-value="4">&#9733;</span>
+              <span class="star" data-value="5">&#9733;</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="book-date">Date Read</label>
+            <input type="date" id="book-date">
+          </div>
+          <div class="form-group">
+            <label for="book-cover">Cover Image URL</label>
+            <input type="url" id="book-cover" placeholder="https://...">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="book-notes">Notes</label>
+          <textarea id="book-notes" rows="3" placeholder="Your thoughts about this book..."></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" id="form-cancel" class="btn-secondary">Cancel</button>
+          <button type="submit" class="btn-primary">Save Book</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Review Detail Modal -->
+  <div id="review-detail-overlay" class="modal-overlay">
+    <div class="modal review-detail-modal">
+      <div class="modal-header">
+        <h2 id="review-detail-title">Reviews</h2>
+        <button id="review-detail-close" class="btn-icon">&times;</button>
+      </div>
+      <div class="review-detail-body">
+        <div id="review-list" class="review-list"></div>
+        <div id="review-detail-empty" class="review-detail-empty">
+          <p>No reviews yet. Add your first review!</p>
+        </div>
+        <div class="review-detail-actions">
+          <button id="add-review-btn" class="btn-primary">+ Add Review</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Review Form Modal -->
+  <div id="review-form-overlay" class="modal-overlay">
+    <div class="modal review-form-modal">
+      <div class="modal-header">
+        <h2 id="review-form-title">Add Review</h2>
+        <button id="review-form-close" class="btn-icon">&times;</button>
+      </div>
+      <form id="review-form" class="book-form">
+        <div class="form-group">
+          <label>Rating</label>
+          <div class="star-rating" id="review-star-rating">
+            <span class="star" data-value="1">&#9733;</span>
+            <span class="star" data-value="2">&#9733;</span>
+            <span class="star" data-value="3">&#9733;</span>
+            <span class="star" data-value="4">&#9733;</span>
+            <span class="star" data-value="5">&#9733;</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="review-text">Your Review</label>
+          <textarea id="review-text" rows="5" placeholder="What did you think of this book?"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" id="review-form-cancel" class="btn-secondary">Cancel</button>
+          <button type="submit" class="btn-primary">Save Review</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
