@@ -119,13 +119,33 @@ viewGrid.addEventListener('click', () => toggleView('grid'));
 viewList.addEventListener('click', () => toggleView('list'));
 
 // ===== Export / Import =====
-function exportData() {
+async function exportData() {
   const data = JSON.stringify(books, null, 2);
+  const suggestedName = 'book-tracker-data.json';
+
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName,
+        types: [{
+          description: 'JSON',
+          accept: { 'application/json': ['.json'] },
+        }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(data);
+      await writable.close();
+      return;
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+    }
+  }
+
   const blob = new Blob([data], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'book-tracker-data.json';
+  a.download = suggestedName;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

@@ -42,14 +42,18 @@ All data is stored in your browser's **localStorage**. This means:
 
 ### Export / Import
 
-Use the **Export** button to download all your data as a `book-tracker-data.json` file. Use the **Import** button to load it back — on the same browser or a different one.
+Use the **Export** button to save all your data as a `book-tracker-data.json` file. Use the **Import** button to load it back — on the same browser or a different one.
+
+**Two export modes:**
+
+- **Direct save into a folder of your choice** — works when the app is served over `http://`/`https://` (local server or GitHub Pages) in **Chrome/Edge**. The browser opens a save dialog — navigate to your project folder and the file is written directly there (even overwriting an existing file).
+- **Standard download** — the fallback when the app is opened as `file://` directly or used in Firefox/Safari. The file downloads to your Downloads folder; move it into the project folder afterward.
 
 This is the recommended way to:
 - Back up your data
 - Transfer data between browsers or machines
 - Move data if you clear your browser
-
-The exported JSON file can be committed to your git repo for safekeeping.
+- **Commit your data to git** — export `book-tracker-data.json` into the project folder, then `git add` + `git commit` it alongside your code.
 
 ## Project Structure
 
